@@ -10,6 +10,13 @@ export interface LoginRequest {
   password: string
 }
 
+export interface RegisterRequest {
+  email: string
+  password: string
+  name: string
+  gymName?: string
+}
+
 export interface DecodedToken {
   sub: string
   gymId?: number

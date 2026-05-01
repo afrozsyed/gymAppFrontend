@@ -17,7 +17,7 @@ export interface Member {
 
 export interface MemberRequest {
   name: string
-  phone: string
+  phone?: string
   joinDate: string
   planId: number
   paymentStatus: PaymentStatus
