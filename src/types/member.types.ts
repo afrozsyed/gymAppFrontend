@@ -17,7 +17,11 @@ export interface Member {
 
 export interface MemberRequest {
   name: string
+<<<<<<< HEAD
   phone: string
+=======
+  phone?: string
+>>>>>>> c4890be581e973935dd3e97b62bd10547ee6752a
   joinDate: string
   planId: number
   paymentStatus: PaymentStatus
