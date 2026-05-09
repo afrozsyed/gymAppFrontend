@@ -4,6 +4,16 @@ export interface PlanStat {
   revenue: number
 }
 
+export interface StaffAttendanceStat {
+  staffName: string
+  role: string
+  presentDays: number
+  absentDays: number
+  halfDays: number
+  leaveDays: number
+  totalMarked: number
+}
+
 export interface ReportResponse {
   year: number
   month: number
@@ -16,4 +26,27 @@ export interface ReportResponse {
   revenueThisMonth: number
   pendingAmount: number
   planBreakdown: PlanStat[]
+  staffAttendance: StaffAttendanceStat[]
+}
+
+export interface MonthlyBreakdown {
+  month: number
+  monthLabel: string
+  newJoiners: number
+  renewals: number
+  revenue: number
+}
+
+export interface YearlyReport {
+  year: number
+  totalMembers: number
+  activeMembers: number
+  expiredMembers: number
+  pendingAmount: number
+  totalNewJoiners: number
+  totalRenewals: number
+  totalRevenue: number
+  monthlyBreakdown: MonthlyBreakdown[]
+  planBreakdown: PlanStat[]
+  staffAttendance: StaffAttendanceStat[]
 }
