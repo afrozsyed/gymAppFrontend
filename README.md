@@ -37,6 +37,7 @@ src/
 │   ├── payment.types.ts            # PaymentRequest, PaymentResponse, PaymentMode
 │   ├── dashboard.types.ts          # DashboardResponse
 │   ├── report.types.ts             # ReportResponse, PlanStat
+│   ├── staff.types.ts              # Staff, StaffRequest, PagedStaff, AttendanceRecord, AttendanceRequest
 │   ├── profile.types.ts            # UserProfileResponse, UpdateProfileRequest, ChangePasswordRequest
 │   └── admin.types.ts              # GymDetailResponse, CreateGymRequest, ResetPasswordRequest
 │
@@ -52,6 +53,7 @@ src/
 │   ├── dashboardApi.ts
 │   ├── remindersApi.ts
 │   ├── reportApi.ts                # getMonthly(year, month)
+│   ├── staffApi.ts                 # Staff CRUD + markAttendance + getMonthlyAttendance
 │   ├── profileApi.ts               # getProfile, updateProfile, changePassword
 │   └── adminApi.ts                 # getAllGyms, createGym, activate/deactivate, resetPassword
 │
@@ -61,6 +63,7 @@ src/
 │   ├── usePlans.ts
 │   ├── usePayments.ts              # useRecordPayment, usePaymentHistory
 │   ├── useReport.ts                # useMonthlyReport(year, month)
+│   ├── useStaff.ts                 # useStaff, useCreateStaff, useUpdateStaff, useDeleteStaff, useMarkAttendance, useMonthlyAttendance
 │   ├── useProfile.ts               # useProfile, useUpdateProfile, useChangePassword
 │   └── useAdmin.ts                 # useAllGyms, useCreateGym, useActivateGym, useDeactivateGym, useResetPassword
 │
@@ -71,11 +74,18 @@ src/
 │   ├── MemberFormPage.tsx          # Used for both Add and Edit
 │   ├── PlansPage.tsx
 │   ├── ReportsPage.tsx             # Monthly report — numbers only, print-to-PDF
+│   ├── StaffPage.tsx               # Staff list page wrapper
+│   ├── StaffFormPage.tsx           # Add/Edit staff (React Hook Form + Zod)
 │   ├── ProfilePage.tsx             # Profile info + change password (all roles)
 │   └── SuperAdminPage.tsx          # Gym list + create gym form (SUPER_ADMIN only)
 │
-└── utils/
-    └── whatsapp.ts                 # openWhatsApp() — opens wa.me link with pre-filled message
+├── utils/
+│   └── whatsapp.ts                 # openWhatsApp() — opens wa.me link with pre-filled message
+│
+└── components/
+    └── staff/
+        ├── StaffList.tsx           # Filter bar + paginated table; Edit/Attendance/Delete actions
+        └── AttendanceModal.tsx     # Monthly calendar + mark attendance (upsert)
 │
 └── components/
     ├── layout/
@@ -175,6 +185,9 @@ Three route guard components are exported from [ProtectedRoute.tsx](src/componen
 | `/members/:id/edit` | MemberFormPage (Edit) | GymRoute |
 | `/plans` | PlansPage | GymRoute |
 | `/reports` | ReportsPage | GymRoute |
+| `/staff` | StaffPage | GymRoute |
+| `/staff/new` | StaffFormPage (Add) | GymRoute |
+| `/staff/:id/edit` | StaffFormPage (Edit) | GymRoute |
 | `/profile` | ProfilePage | ProtectedRoute (any auth) |
 | `/` | Redirects to `/dashboard` | — |
 
@@ -360,6 +373,59 @@ Inline add form (name, duration days, price) + plan table with delete.
 
 ---
 
+### Staff List
+
+**Path:** `/staff` (ADMIN / STAFF)
+
+A paginated table of all gym staff members, sorted by creation date.
+
+**Filter bar:** Name search (debounced 300 ms), Role dropdown, Status dropdown, Clear button, "+ Add Staff" button.
+
+**Table columns:** Name, Phone, Email, Role badge, Join Date, Salary, Status badge, Actions (Edit | Attendance | Delete)
+
+**Role badge:** Blue pill — Trainer / Receptionist / Manager / Cleaner / Other
+
+**Status badges:**
+
+| Badge | Colour |
+|---|---|
+| ACTIVE | Green |
+| INACTIVE | Gray |
+| ON_LEAVE | Yellow |
+
+---
+
+### Add / Edit Staff
+
+**Path:** `/staff/new` · `/staff/:id/edit`
+
+| Field | Required | Notes |
+|---|---|---|
+| Full Name | Yes | |
+| Phone | No | |
+| Email | No | |
+| Join Date | Yes | Defaults to today |
+| Role | Yes | Trainer / Receptionist / Manager / Cleaner / Other |
+| Status | Yes | Active / Inactive / On Leave |
+| ID Proof Type | No | Aadhar / PAN / Passport / Driving License / Voter ID |
+| ID Proof Number | No | |
+| Salary (₹) | No | |
+| Address | No | Textarea |
+
+---
+
+### Attendance Modal
+
+**Trigger:** Clicking the **Attendance** button on any staff row.
+
+An overlay modal with:
+- **Month navigation** (← →, next-month arrow disabled on current month)
+- **Summary row**: Present / Absent / Half-Day / Leave counts for the month
+- **Monthly calendar grid**: 7-column week layout. Each day shows a coloured dot — green (Present), red (Absent), yellow (Half Day), blue (Leave), gray (unmarked). Today's date is highlighted with a blue ring.
+- **Mark Attendance section** (bottom): Date picker (max = today), Status select, Notes input, "Mark Attendance" button. Submitting the same date twice **updates** the existing record (upsert — no duplicate error).
+
+---
+
 ### Profile
 
 **Path:** `/profile` (all roles)
@@ -415,6 +481,9 @@ All API data lives in React Query — not in component state or Zustand. Cache k
 | Plans | `['plans']` |
 | Payment history | `['payments', memberId]` |
 | Monthly report | `['reports', 'monthly', { year, month }]` |
+| Staff list | `['staff', 'list', { page, size, ...filters }]` |
+| Single staff | `['staff', 'detail', id]` |
+| Staff attendance | `['staff', 'attendance', staffId, { year, month }]` |
 | Profile | `['profile']` |
 | Admin gym list | `['admin', 'gyms']` |
 

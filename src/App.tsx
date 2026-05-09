@@ -13,6 +13,8 @@ import PlansPage from './pages/PlansPage'
 import ProfilePage from './pages/ProfilePage'
 import SuperAdminPage from './pages/SuperAdminPage'
 import ReportsPage from './pages/ReportsPage'
+import StaffPage from './pages/StaffPage'
+import StaffFormPage from './pages/StaffFormPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +58,9 @@ export default function App() {
             <Route path="/members/:id/edit" element={<GymRoute><MemberFormPage /></GymRoute>} />
             <Route path="/plans" element={<GymRoute><PlansPage /></GymRoute>} />
             <Route path="/reports" element={<GymRoute><ReportsPage /></GymRoute>} />
+            <Route path="/staff" element={<GymRoute><StaffPage /></GymRoute>} />
+            <Route path="/staff/new" element={<GymRoute><StaffFormPage /></GymRoute>} />
+            <Route path="/staff/:id/edit" element={<GymRoute><StaffFormPage /></GymRoute>} />
 
             {/* Available to all authenticated roles */}
             <Route path="/profile" element={<ProfilePage />} />
