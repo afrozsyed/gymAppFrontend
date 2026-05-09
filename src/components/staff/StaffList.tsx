@@ -250,7 +250,7 @@ export default function StaffList() {
           {data.totalPages > 1 && (
             <div className="mt-4">
               <Pagination
-                currentPage={data.number}
+                page={data.number}
                 totalPages={data.totalPages}
                 onPageChange={setPage}
               />

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useStaffMember, useCreateStaff, useUpdateStaff } from '../hooks/useStaff'
+import type { IdProofType } from '../types/staff.types'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import FeatureGate from '../components/common/FeatureGate'
 
@@ -67,7 +68,7 @@ export default function StaffFormPage() {
       ...data,
       phone:         data.phone         || undefined,
       email:         data.email         || undefined,
-      idProofType:   (data.idProofType  || undefined) as FormData['idProofType'],
+      idProofType:   (data.idProofType || undefined) as IdProofType | undefined,
       idProofNumber: data.idProofNumber || undefined,
       address:       data.address       || undefined,
     }
