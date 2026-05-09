@@ -36,6 +36,7 @@ src/
 │   ├── plan.types.ts               # Plan, PlanRequest
 │   ├── payment.types.ts            # PaymentRequest, PaymentResponse, PaymentMode
 │   ├── dashboard.types.ts          # DashboardResponse
+│   ├── report.types.ts             # ReportResponse, PlanStat
 │   ├── profile.types.ts            # UserProfileResponse, UpdateProfileRequest, ChangePasswordRequest
 │   └── admin.types.ts              # GymDetailResponse, CreateGymRequest, ResetPasswordRequest
 │
@@ -45,30 +46,36 @@ src/
 ├── api/                            # Axios API modules
 │   ├── axiosInstance.ts            # Base instance + interceptors
 │   ├── authApi.ts
-│   ├── membersApi.ts
+│   ├── membersApi.ts               # getAll supports MemberFilters (name, phone, planId, status)
 │   ├── plansApi.ts
 │   ├── paymentsApi.ts              # record payment, get payment history
 │   ├── dashboardApi.ts
 │   ├── remindersApi.ts
+│   ├── reportApi.ts                # getMonthly(year, month)
 │   ├── profileApi.ts               # getProfile, updateProfile, changePassword
 │   └── adminApi.ts                 # getAllGyms, createGym, activate/deactivate, resetPassword
 │
 ├── hooks/                          # React Query hooks
 │   ├── useDashboard.ts
-│   ├── useMembers.ts               # CRUD + send reminder
+│   ├── useMembers.ts               # CRUD + filters in query key
 │   ├── usePlans.ts
 │   ├── usePayments.ts              # useRecordPayment, usePaymentHistory
+│   ├── useReport.ts                # useMonthlyReport(year, month)
 │   ├── useProfile.ts               # useProfile, useUpdateProfile, useChangePassword
 │   └── useAdmin.ts                 # useAllGyms, useCreateGym, useActivateGym, useDeactivateGym, useResetPassword
 │
 ├── pages/                          # Route-level components
-│   ├── LoginPage.tsx
+│   ├── LoginPage.tsx               # Login form + backend health check button
 │   ├── DashboardPage.tsx
 │   ├── MembersPage.tsx
 │   ├── MemberFormPage.tsx          # Used for both Add and Edit
 │   ├── PlansPage.tsx
+│   ├── ReportsPage.tsx             # Monthly report — numbers only, print-to-PDF
 │   ├── ProfilePage.tsx             # Profile info + change password (all roles)
 │   └── SuperAdminPage.tsx          # Gym list + create gym form (SUPER_ADMIN only)
+│
+└── utils/
+    └── whatsapp.ts                 # openWhatsApp() — opens wa.me link with pre-filled message
 │
 └── components/
     ├── layout/
@@ -77,9 +84,9 @@ src/
     │   └── ProtectedRoute.tsx      # Exports ProtectedRoute, SuperAdminRoute, GymRoute
     ├── dashboard/
     │   ├── StatCard.tsx            # Coloured metric card
-    │   └── MemberTable.tsx         # Alert members table with Remind button
+    │   └── MemberTable.tsx         # Alert members table with WhatsApp Remind button
     ├── members/
-    │   ├── MemberList.tsx          # Paginated table with Edit/Renew/Remind/Delete
+    │   ├── MemberList.tsx          # Filter bar + paginated table; Edit/Renew/Remind/Delete
     │   ├── MemberForm.tsx          # React Hook Form + Zod validated form
     │   └── RecordPaymentModal.tsx  # Renewal modal — plan, amount, payment mode, notes
     ├── profile/
@@ -167,6 +174,7 @@ Three route guard components are exported from [ProtectedRoute.tsx](src/componen
 | `/members/new` | MemberFormPage (Add) | GymRoute |
 | `/members/:id/edit` | MemberFormPage (Edit) | GymRoute |
 | `/plans` | PlansPage | GymRoute |
+| `/reports` | ReportsPage | GymRoute |
 | `/profile` | ProfilePage | ProtectedRoute (any auth) |
 | `/` | Redirects to `/dashboard` | — |
 
@@ -186,6 +194,11 @@ A centred card with email and password fields. Validated with Zod before submiss
 - On success → navigates to `/admin` (SUPER_ADMIN) or `/dashboard` (ADMIN/STAFF)
 - On failure → toast with the server error message ("Invalid email or password" or "Your gym account is deactivated...")
 - No public registration link — gym accounts are created by the Super Admin
+
+**Backend health check (below the form):**
+- A "Check Status" button calls `GET /api/health`
+- Shows a colour-coded indicator: gray (unknown) → yellow pulsing (checking) → green dot (connected) → red dot (unreachable)
+- Useful for diagnosing connectivity issues when the Render free tier is cold-starting
 
 ---
 
@@ -243,6 +256,8 @@ The main screen. Loads on login and auto-refreshes every 60 seconds.
 
 Shows up to 20 members who are expired, expiring today, or have pending payments. Columns: Name, Phone, Plan, Expiry date, Status badge, Payment badge, Remind button.
 
+**Remind button:** Opens WhatsApp Web/app with a pre-filled message referencing the member's name and expiry date. Message text adapts based on status — expired vs. expiring soon.
+
 **Actions:** `+ Add Member` → `/members/new` · `View all members →` → `/members`
 
 ---
@@ -253,9 +268,22 @@ Shows up to 20 members who are expired, expiring today, or have pending payments
 
 A paginated table of all gym members, sorted by creation date (newest first) by default.
 
+**Filter bar (top of page):**
+
+| Filter | Type | Behaviour |
+|---|---|---|
+| Name | Text | Debounced 300 ms, partial case-insensitive match |
+| Phone | Text | Debounced 300 ms, partial match |
+| Plan | Dropdown | Exact plan match by ID |
+| Status | Dropdown | ACTIVE / EXPIRING TODAY / EXPIRED — computed from `expiryDate` |
+
+All filters are server-side — pagination works correctly across filtered results. A **Clear** button appears when any filter is active. Page resets to 0 on any filter change.
+
 **Columns:** Name, Phone, Plan, Joined date, Expiry date, Status badge, Payment badge, Actions (Edit | Renew | Remind | Delete)
 
-**Pagination:** 20 members per page.
+**Pagination:** 20 members per page. Count label shows "N results found" when filters are active.
+
+**Remind button:** Opens WhatsApp Web (desktop) or WhatsApp app (mobile) via `wa.me/<phone>?text=<encoded>` with a pre-filled membership expiry message. No backend API call is made — the user sends the message from their WhatsApp.
 
 **Status badges:**
 
@@ -299,6 +327,28 @@ On submit: calls `POST /api/members/{id}/payments` → expiry updated, status se
 | Payment Status | radio (PAID / PENDING) | Required |
 
 Expiry date preview shown as a read-only computed info box (`joinDate + plan.durationDays`).
+
+---
+
+### Reports
+
+**Path:** `/reports` (ADMIN / STAFF)
+
+Monthly summary report — numbers only, no charts.
+
+**Navigation:** ← → arrows to move between months. The next-month arrow is disabled when viewing the current month.
+
+**Print / PDF:** A "Print" button calls `window.print()`. The header, navigation controls, and sidebar are hidden in print mode (`print:hidden`); a print-only title replaces them (`hidden print:block`). Use the browser's "Save as PDF" option for a clean PDF export.
+
+**Sections:**
+
+| Section | Metrics |
+|---|---|
+| Membership Overview | Total Members, Active Members, Expired Members, New Joiners this month |
+| Revenue | Revenue This Month (₹), Renewed Members, Pending Amount (₹) |
+| Plan-wise Breakdown | Table: Plan name, Renewals, Revenue — with totals row |
+
+All amounts formatted in Indian locale (₹ with lakh/crore separators).
 
 ---
 
@@ -360,10 +410,11 @@ All API data lives in React Query — not in component state or Zustand. Cache k
 | Data | Query key |
 |---|---|
 | Dashboard | `['dashboard']` |
-| Members list | `['members', 'list', { page, size }]` |
+| Members list | `['members', 'list', { page, size, ...filters }]` |
 | Single member | `['members', 'detail', id]` |
 | Plans | `['plans']` |
 | Payment history | `['payments', memberId]` |
+| Monthly report | `['reports', 'monthly', { year, month }]` |
 | Profile | `['profile']` |
 | Admin gym list | `['admin', 'gyms']` |
 
@@ -381,7 +432,7 @@ All forms use **React Hook Form** with **Zod** resolvers. Validation runs on sub
 
 ### Axios instance (`src/api/axiosInstance.ts`)
 
-- **Base URL:** `/api` (proxied to `http://localhost:8080` in dev)
+- **Base URL:** `/api` (proxied to `http://localhost:8081` in dev)
 - **Request interceptor:** Reads token from Zustand store and adds `Authorization: Bearer <token>`
 - **Response interceptor:** On `401`, calls `logout()` and redirects to `/login`
 
@@ -390,8 +441,40 @@ All forms use **React Hook Form** with **Zod** resolvers. Validation runs on sub
 ## Environment Variables
 
 ```env
-# .env (not committed)
-VITE_API_BASE_URL=http://localhost:8080
+# .env (not committed — only needed if overriding the Vite proxy)
+VITE_API_BASE_URL=http://localhost:8081
 ```
 
-In development, the Vite proxy handles API routing so this variable is not strictly needed. In production builds, configure the nginx proxy or set this variable to point to your backend.
+In development, the Vite dev server proxies all `/api` requests to `http://localhost:8081` (configured in `vite.config.ts`), so no CORS issues and no env variable required.
+
+---
+
+## Production Deployment (Vercel)
+
+The frontend is deployed on **Vercel**. API calls are proxied server-side via `vercel.json` rewrites, so no CORS configuration is needed on the backend.
+
+### `vercel.json` (in `frontend/`)
+
+```json
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://<your-render-url>/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+```
+
+The first rewrite proxies all `/api/*` requests to the Render backend. The second rewrite is the SPA fallback (required for client-side routing — without it, direct URL navigation returns 404).
+
+### Deploy steps
+
+1. Push the `frontend/` directory to GitHub (can be a monorepo — Vercel supports root directory config).
+2. [vercel.com](https://vercel.com) → **Add New Project** → import the repo.
+3. Set **Root Directory** to `frontend`.
+4. Set **Framework Preset** to `Vite`.
+5. No environment variables are needed — the proxy in `vercel.json` handles API routing.
+6. Click **Deploy**.
+
+### Free tier behaviour
+- Vercel free tier has no cold start — the static site is always served instantly from CDN.
+- API latency on first request may be slow if the Render backend is cold-starting (~30 s). The Login page health check button helps diagnose this.

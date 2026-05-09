@@ -5,6 +5,7 @@ const gymNavItems = [
   { to: '/dashboard', label: 'Dashboard', icon: '📊' },
   { to: '/members', label: 'Members', icon: '👥' },
   { to: '/plans', label: 'Plans', icon: '📋' },
+  { to: '/reports', label: 'Reports', icon: '📈' },
   { to: '/profile', label: 'Profile', icon: '👤' },
 ]
 

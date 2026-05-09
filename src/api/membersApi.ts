@@ -1,10 +1,19 @@
 import axiosInstance from './axiosInstance'
 import type { Member, MemberRequest, PagedMembers } from '../types/member.types'
 
+export interface MemberFilters {
+  name?: string
+  phone?: string
+  planId?: number
+  status?: string
+}
+
 export const membersApi = {
-  getAll: (page = 0, size = 20) =>
+  getAll: (page = 0, size = 20, filters: MemberFilters = {}) =>
     axiosInstance
-      .get<PagedMembers>('/members', { params: { page, size, sort: 'createdAt,desc' } })
+      .get<PagedMembers>('/members', {
+        params: { page, size, sort: 'createdAt,desc', ...filters },
+      })
       .then((r) => r.data),
 
   getById: (id: number) =>

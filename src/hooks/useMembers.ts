@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { membersApi } from '../api/membersApi'
+import type { MemberFilters } from '../api/membersApi'
 import { remindersApi } from '../api/remindersApi'
 import type { MemberRequest } from '../types/member.types'
 import toast from 'react-hot-toast'
@@ -7,14 +8,15 @@ import toast from 'react-hot-toast'
 export const memberKeys = {
   all: ['members'] as const,
   lists: () => [...memberKeys.all, 'list'] as const,
-  list: (page: number, size: number) => [...memberKeys.lists(), { page, size }] as const,
+  list: (page: number, size: number, filters: MemberFilters) =>
+    [...memberKeys.lists(), { page, size, ...filters }] as const,
   detail: (id: number) => [...memberKeys.all, 'detail', id] as const,
 }
 
-export function useMembers(page = 0, size = 20) {
+export function useMembers(page = 0, size = 20, filters: MemberFilters = {}) {
   return useQuery({
-    queryKey: memberKeys.list(page, size),
-    queryFn: () => membersApi.getAll(page, size),
+    queryKey: memberKeys.list(page, size, filters),
+    queryFn: () => membersApi.getAll(page, size, filters),
   })
 }
 
