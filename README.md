@@ -36,10 +36,11 @@ src/
 │   ├── plan.types.ts               # Plan, PlanRequest
 │   ├── payment.types.ts            # PaymentRequest, PaymentResponse, PaymentMode
 │   ├── dashboard.types.ts          # DashboardResponse
-│   ├── report.types.ts             # ReportResponse, PlanStat
+│   ├── report.types.ts             # ReportResponse, YearlyReport, PlanStat, StaffAttendanceStat, MonthlyBreakdown
 │   ├── staff.types.ts              # Staff, StaffRequest, PagedStaff, AttendanceRecord, AttendanceRequest
 │   ├── profile.types.ts            # UserProfileResponse, UpdateProfileRequest, ChangePasswordRequest
-│   └── admin.types.ts              # GymDetailResponse, CreateGymRequest, ResetPasswordRequest
+│   ├── admin.types.ts              # GymDetailResponse (includes plan fields), CreateGymRequest, ResetPasswordRequest
+│   └── subscription.types.ts      # SubscriptionPlan, CurrentSubscription, AssignSubscriptionRequest, SubscriptionPlanRequest
 │
 ├── store/
 │   └── authStore.ts                # Zustand: token, role, name, gymName, gymId (persisted)
@@ -52,20 +53,22 @@ src/
 │   ├── paymentsApi.ts              # record payment, get payment history
 │   ├── dashboardApi.ts
 │   ├── remindersApi.ts
-│   ├── reportApi.ts                # getMonthly(year, month)
+│   ├── reportApi.ts                # getMonthly(year, month), getYearly(year), getRange(start, end)
 │   ├── staffApi.ts                 # Staff CRUD + markAttendance + getMonthlyAttendance
 │   ├── profileApi.ts               # getProfile, updateProfile, changePassword
-│   └── adminApi.ts                 # getAllGyms, createGym, activate/deactivate, resetPassword
+│   ├── adminApi.ts                 # getAllGyms, createGym, activate/deactivate, resetPassword
+│   └── subscriptionApi.ts          # getCurrent, getAllPlans, adminGetAllPlans, adminUpdatePlan, adminAssignSubscription
 │
 ├── hooks/                          # React Query hooks
 │   ├── useDashboard.ts
 │   ├── useMembers.ts               # CRUD + filters in query key
 │   ├── usePlans.ts
 │   ├── usePayments.ts              # useRecordPayment, usePaymentHistory
-│   ├── useReport.ts                # useMonthlyReport(year, month)
+│   ├── useReport.ts                # useMonthlyReport, useYearlyReport, useRangeReport
 │   ├── useStaff.ts                 # useStaff, useCreateStaff, useUpdateStaff, useDeleteStaff, useMarkAttendance, useMonthlyAttendance
 │   ├── useProfile.ts               # useProfile, useUpdateProfile, useChangePassword
-│   └── useAdmin.ts                 # useAllGyms, useCreateGym, useActivateGym, useDeactivateGym, useResetPassword
+│   ├── useAdmin.ts                 # useAllGyms, useCreateGym, useActivateGym, useDeactivateGym, useResetPassword
+│   └── useSubscription.ts          # useCurrentSubscription, useSubscriptionPlans, useAdminPlans, useUpdatePlan, useAssignSubscription
 │
 ├── pages/                          # Route-level components
 │   ├── LoginPage.tsx               # Login form + backend health check button
@@ -73,11 +76,12 @@ src/
 │   ├── MembersPage.tsx
 │   ├── MemberFormPage.tsx          # Used for both Add and Edit
 │   ├── PlansPage.tsx
-│   ├── ReportsPage.tsx             # Monthly report — numbers only, print-to-PDF
+│   ├── ReportsPage.tsx             # 3-tab report (Monthly/Yearly/Custom) with tables and staff attendance, print-to-PDF
 │   ├── StaffPage.tsx               # Staff list page wrapper
 │   ├── StaffFormPage.tsx           # Add/Edit staff (React Hook Form + Zod)
 │   ├── ProfilePage.tsx             # Profile info + change password (all roles)
-│   └── SuperAdminPage.tsx          # Gym list + create gym form (SUPER_ADMIN only)
+│   ├── SuperAdminPage.tsx          # Gym management + subscription plan management (SUPER_ADMIN only)
+│   └── SubscriptionPage.tsx        # Current plan info + plan comparison grid (gym users)
 │
 ├── utils/
 │   └── whatsapp.ts                 # openWhatsApp() — opens wa.me link with pre-filled message
@@ -90,7 +94,7 @@ src/
 └── components/
     ├── layout/
     │   ├── AppLayout.tsx           # Sidebar + main content shell (mobile hamburger)
-    │   ├── Sidebar.tsx             # Role-aware nav links + real gym name + logout
+    │   ├── Sidebar.tsx             # Role-aware nav links + real gym name + logout + ✦ Pro lock badges
     │   └── ProtectedRoute.tsx      # Exports ProtectedRoute, SuperAdminRoute, GymRoute
     ├── dashboard/
     │   ├── StatCard.tsx            # Coloured metric card
@@ -106,7 +110,8 @@ src/
     └── common/
         ├── LoadingSpinner.tsx
         ├── ErrorBanner.tsx
-        └── Pagination.tsx
+        ├── Pagination.tsx
+        └── FeatureGate.tsx         # Full-page lock for premium features; shows "View Plans" upgrade prompt
 ```
 
 ---
@@ -188,6 +193,7 @@ Three route guard components are exported from [ProtectedRoute.tsx](src/componen
 | `/staff` | StaffPage | GymRoute |
 | `/staff/new` | StaffFormPage (Add) | GymRoute |
 | `/staff/:id/edit` | StaffFormPage (Edit) | GymRoute |
+| `/subscription` | SubscriptionPage | GymRoute |
 | `/profile` | ProfilePage | ProtectedRoute (any auth) |
 | `/` | Redirects to `/dashboard` | — |
 
@@ -215,36 +221,48 @@ A centred card with email and password fields. Validated with Zod before submiss
 
 ---
 
-### Super Admin — Gym Management
+### Super Admin — Gym & Subscription Management
 
 **Path:** `/admin` (SUPER_ADMIN only)
 
-Two sections on one page:
+Three sections on one page:
 
-**Create Gym form (top):**
+**1. Subscription Plans table (top):**
 
-| Field | Notes |
+Editable table of all subscription plan definitions:
+
+| Column | Notes |
 |---|---|
-| Gym Name | Required |
-| Owner Name | Required |
-| Email | Required, valid email — becomes the ADMIN login |
-| Phone | Optional |
-| Password | Required, min 6 chars |
+| Plan | Display name (Basic / Pro / Pro Plus) |
+| Price/mo | Monthly price in ₹ |
+| Members | Member limit (-1 shown as ∞) |
+| Staff | Staff limit (-1 shown as ∞) |
+| Yearly / Custom / Staff / Attend. / Remind. | Feature flags (✓ / ✗) |
+| Edit | Opens EditPlanModal |
+
+**EditPlanModal:** Edit display name, description, price, member limit, staff limit, and five feature toggle checkboxes. -1 = unlimited for limits.
+
+**2. Create Gym button** — top-right of the gym section header.
+
+Opens **CreateGymModal** with fields: Gym Name, Owner Name, Email, Phone (optional), Password.
 
 On submit: gym + admin user created atomically. Form resets. Gym list refreshes.
 
-**Gym List (below):**
-
-Table / mobile card list of all gyms:
+**3. Gym List table / mobile cards:**
 
 | Column | Notes |
 |---|---|
 | Gym Name | |
 | Owner | |
 | Email | |
-| Phone | |
+| Plan | Colored badge — gray (No Plan), blue (Pro), purple (Pro Plus) |
+| Expires | Plan expiry date formatted as "1 Jun 2026" |
+| Members | Current registered member count |
+| Staff | Current registered staff count |
 | Status | Green `ACTIVE` or red `INACTIVE` badge |
-| Actions | Activate / Deactivate toggle · Reset Password button |
+| Actions | Activate/Deactivate · **Assign Plan** · Reset PW |
+
+**Assign Plan modal:** Plan dropdown (shows price) + duration select (1 / 3 / 6 / 12 months). Existing active subscription is cancelled and replaced.
 
 **Reset Password modal:** Single "New Password" field. Sets a new password for the gym's ADMIN user without requiring the old one.
 
@@ -347,21 +365,75 @@ Expiry date preview shown as a read-only computed info box (`joinDate + plan.dur
 
 **Path:** `/reports` (ADMIN / STAFF)
 
-Monthly summary report — numbers only, no charts.
+A 3-tab professional report interface — numbers and tables, no charts.
 
-**Navigation:** ← → arrows to move between months. The next-month arrow is disabled when viewing the current month.
+**Tabs:**
 
-**Print / PDF:** A "Print" button calls `window.print()`. The header, navigation controls, and sidebar are hidden in print mode (`print:hidden`); a print-only title replaces them (`hidden print:block`). Use the browser's "Save as PDF" option for a clean PDF export.
-
-**Sections:**
-
-| Section | Metrics |
+| Tab | Description |
 |---|---|
-| Membership Overview | Total Members, Active Members, Expired Members, New Joiners this month |
-| Revenue | Revenue This Month (₹), Renewed Members, Pending Amount (₹) |
-| Plan-wise Breakdown | Table: Plan name, Renewals, Revenue — with totals row |
+| Monthly | Month navigator (← →). Stats for the selected month. Next-month arrow disabled on current month. |
+| Yearly | Year navigator (← →). Full-year aggregates + 12-row month-by-month breakdown table. |
+| Custom | Start + End date pickers. "Generate Report" button fetches data only on click. |
+
+**Print / PDF:** A "Print" button (top-right, hidden when printing) calls `window.print()`. Tab bar, navigator controls, and sidebar are hidden in print mode; a clean title replaces them. Use the browser's "Save as PDF" option.
+
+**Sections (all tabs):**
+
+| Section | Content |
+|---|---|
+| Membership Overview | Stat cards: Total Members, Active, Expired, New Joiners (period-scoped) |
+| Revenue | Stat cards: Revenue Collected, Members Renewed, Pending Amount (all unpaid) |
+| Plan-wise Revenue | Table: Plan name \| Renewals \| Revenue — with totals row |
+| Staff Attendance | Table: Staff name \| Role \| Present \| Absent \| Half Day \| Leave \| Total — with totals row |
+
+**Yearly tab only — additional section:**
+
+| Section | Content |
+|---|---|
+| Month-by-Month Breakdown | 12-row table: Month \| New Joiners \| Renewals \| Revenue — with totals row |
 
 All amounts formatted in Indian locale (₹ with lakh/crore separators).
+
+**Subscription gating:**
+
+| Tab | Required Plan |
+|---|---|
+| Monthly | All plans |
+| Yearly | Pro or higher |
+| Custom | Pro Plus |
+
+Locked tabs show an inline upgrade prompt (lock icon + "View Plans" button) instead of the report content. The backend also enforces this with a `403` error.
+
+---
+
+### Subscription
+
+**Path:** `/subscription` (ADMIN / STAFF)
+
+Shows the gym's current subscription status and a plan comparison grid.
+
+**Current Plan card:**
+- Plan name badge + Active/Expired/None status
+- Valid until date (if active)
+- Member usage bar: `current / limit` with color-coding (green → yellow at 70% → red at 90%)
+- Staff usage bar: same
+- Price per month
+
+**Plan Comparison grid (3 cards):**
+
+Each card shows: display name, price, member limit, staff limit, and a feature checklist (✓/✗):
+- Dashboard & Members — included in all plans
+- Plans & Payments — included in all plans
+- Monthly Reports — included in all plans
+- Yearly Reports — Pro and above
+- Custom Date Reports — Pro Plus only
+- Staff Management — Pro and above
+- Staff Attendance — Pro and above
+- WhatsApp Reminders — Pro and above
+
+Current plan card is highlighted with a blue border and "Current Plan" badge.
+
+Footer: "To upgrade or change your plan, contact your gym administrator."
 
 ---
 
@@ -480,7 +552,9 @@ All API data lives in React Query — not in component state or Zustand. Cache k
 | Single member | `['members', 'detail', id]` |
 | Plans | `['plans']` |
 | Payment history | `['payments', memberId]` |
-| Monthly report | `['reports', 'monthly', { year, month }]` |
+| Monthly report | `['reports', 'monthly', year, month]` |
+| Yearly report | `['reports', 'yearly', year]` |
+| Custom range report | `['reports', 'range', start, end]` |
 | Staff list | `['staff', 'list', { page, size, ...filters }]` |
 | Single staff | `['staff', 'detail', id]` |
 | Staff attendance | `['staff', 'attendance', staffId, { year, month }]` |

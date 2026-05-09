@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useStaffMember, useCreateStaff, useUpdateStaff } from '../hooks/useStaff'
 import LoadingSpinner from '../components/common/LoadingSpinner'
+import FeatureGate from '../components/common/FeatureGate'
 
 const schema = z.object({
   name:           z.string().min(1, 'Name is required').max(150),
@@ -89,6 +90,7 @@ export default function StaffFormPage() {
   const isPending = createStaff.isPending || updateStaff.isPending
 
   return (
+    <FeatureGate feature="featureStaff">
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <div className="mb-5">
         <button
@@ -208,5 +210,6 @@ export default function StaffFormPage() {
         </form>
       </div>
     </div>
+    </FeatureGate>
   )
 }

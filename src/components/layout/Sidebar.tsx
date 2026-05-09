@@ -1,18 +1,27 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useCurrentSubscription } from '../../hooks/useSubscription'
 
-const gymNavItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { to: '/members',   label: 'Members',   icon: '👥' },
-  { to: '/staff',     label: 'Staff',     icon: '👨‍💼' },
-  { to: '/plans',     label: 'Plans',     icon: '📋' },
-  { to: '/reports',   label: 'Reports',   icon: '📈' },
-  { to: '/profile',   label: 'Profile',   icon: '👤' },
+type GymNavItem = {
+  to: string
+  label: string
+  icon: string
+  featureKey?: 'featureStaff' | 'featureAttendance' | 'featureReminders' | 'featureReportsYearly' | 'featureReportsCustom'
+}
+
+const gymNavItems: GymNavItem[] = [
+  { to: '/dashboard',    label: 'Dashboard',    icon: '📊' },
+  { to: '/members',      label: 'Members',      icon: '👥' },
+  { to: '/staff',        label: 'Staff',        icon: '👨‍💼', featureKey: 'featureStaff' },
+  { to: '/plans',        label: 'Plans',        icon: '📋' },
+  { to: '/reports',      label: 'Reports',      icon: '📈' },
+  { to: '/subscription', label: 'Subscription', icon: '⭐' },
+  { to: '/profile',      label: 'Profile',      icon: '👤' },
 ]
 
 const adminNavItems = [
-  { to: '/admin', label: 'Gym Management', icon: '🏢' },
-  { to: '/profile', label: 'Profile', icon: '👤' },
+  { to: '/admin',   label: 'Gym Management', icon: '🏢' },
+  { to: '/profile', label: 'Profile',        icon: '👤' },
 ]
 
 interface Props {
@@ -23,6 +32,7 @@ interface Props {
 export default function Sidebar({ isOpen, onClose }: Props) {
   const { name, gymName, role, logout } = useAuthStore()
   const navigate = useNavigate()
+  const { data: sub } = useCurrentSubscription()
 
   const navItems = role === 'SUPER_ADMIN' ? adminNavItems : gymNavItems
 
@@ -62,23 +72,30 @@ export default function Sidebar({ isOpen, onClose }: Props) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            onClick={onClose}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-              }`
-            }
-          >
-            <span className="text-base">{item.icon}</span>
-            {item.label}
-          </NavLink>
-        ))}
+        {navItems.map((item) => {
+          const fk = (item as GymNavItem).featureKey
+          const locked = fk && sub ? !sub[fk] : false
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={onClose}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                }`
+              }
+            >
+              <span className="text-base">{item.icon}</span>
+              <span className="flex-1">{item.label}</span>
+              {locked && (
+                <span className="text-amber-400 text-xs font-semibold">✦ Pro</span>
+              )}
+            </NavLink>
+          )
+        })}
       </nav>
 
       {/* Logout */}

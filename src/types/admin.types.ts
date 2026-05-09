@@ -7,6 +7,11 @@ export interface GymDetailResponse {
   ownerEmail: string | null
   ownerPhone: string | null
   createdAt: string
+  currentPlan: string | null
+  planDisplayName: string | null
+  planExpiry: string | null
+  memberCount: number
+  staffCount: number
 }
 
 export interface CreateGymRequest {

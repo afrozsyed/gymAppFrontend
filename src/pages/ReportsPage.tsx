@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMonthlyReport, useYearlyReport, useRangeReport } from '../hooks/useReport'
 import { useAuthStore } from '../store/authStore'
+import { useCurrentSubscription } from '../hooks/useSubscription'
 import type { PlanStat, StaffAttendanceStat, MonthlyBreakdown } from '../types/report.types'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -453,9 +455,29 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'custom',  label: 'Custom'  },
 ]
 
+function UpgradePrompt({ feature, planRequired }: { feature: string; planRequired: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="text-4xl mb-3">🔒</div>
+      <h3 className="text-lg font-bold text-gray-900 mb-1">{feature}</h3>
+      <p className="text-sm text-gray-500 mb-5">
+        Upgrade to <span className="font-semibold text-blue-600">{planRequired}</span> to unlock this report.
+      </p>
+      <button
+        onClick={() => navigate('/subscription')}
+        className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
+      >
+        View Plans
+      </button>
+    </div>
+  )
+}
+
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('monthly')
   const gymName = useAuthStore((s) => s.gymName)
+  const { data: sub } = useCurrentSubscription()
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">
@@ -503,8 +525,16 @@ export default function ReportsPage() {
 
       {/* Tab content */}
       {activeTab === 'monthly' && <MonthlyTab />}
-      {activeTab === 'yearly'  && <YearlyTab />}
-      {activeTab === 'custom'  && <CustomTab />}
+      {activeTab === 'yearly'  && (
+        sub?.featureReportsYearly
+          ? <YearlyTab />
+          : <UpgradePrompt feature="Yearly Reports" planRequired="Pro" />
+      )}
+      {activeTab === 'custom'  && (
+        sub?.featureReportsCustom
+          ? <CustomTab />
+          : <UpgradePrompt feature="Custom Date Reports" planRequired="Pro Plus" />
+      )}
     </div>
   )
 }
